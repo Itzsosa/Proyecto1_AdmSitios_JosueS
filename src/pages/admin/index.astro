@@ -1,0 +1,369 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Panel de Administrador">
+  <div class="max-w-6xl mx-auto mt-8">
+    <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+      <div>
+        <h1 class="text-3xl font-bold" id="admin-welcome">Panel de Administrador</h1>
+        <p class="text-gray-600">Gestiona todos los tickets del sistema</p>
+      </div>
+      
+      <div class="mt-4 md:mt-0 flex items-center gap-4">
+        <div class="relative">
+          <select id="status-filter" class="form-input pr-8 appearance-none">
+            <option value="all">Todos los estados</option>
+            <option value="open">Abiertos</option>
+            <option value="in-progress">En progreso</option>
+            <option value="resolved">Resueltos</option>
+            <option value="closed">Cerrados</option>
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+            <i class="fas fa-chevron-down text-xs"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- All Tickets Section -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-bold mb-4">Cola de Tickets</h2>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Usuario</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Asunto</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Fecha</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-container">
+            <tr>
+              <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                Cargando tickets...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Empty state -->
+      <div id="empty-state" class="hidden py-8 text-center">
+        <p class="text-gray-500">No hay tickets en el sistema</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Ticket Detail Modal -->
+  <div id="ticket-detail-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto flex justify-center items-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4">
+      <div class="flex justify-between items-start">
+        <div>
+          <h2 id="detail-subject" class="text-xl font-bold">Cargando detalles...</h2>
+          <p id="detail-user" class="text-sm text-gray-600">Usuario: ...</p>
+        </div>
+        <button id="close-detail" class="text-gray-500 hover:text-gray-800">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="mt-4">
+        <div class="flex items-center gap-4 mb-2">
+          <div class="flex items-center gap-2">
+            <span id="detail-status" class="badge badge-open">Abierto</span>
+            <span id="detail-date" class="text-sm text-gray-500">Fecha</span>
+          </div>
+          
+          <div class="ml-auto">
+            <select id="update-status" class="text-sm border border-gray-300 rounded px-2 py-1">
+              <option value="open">Abierto</option>
+              <option value="in-progress">En Progreso</option>
+              <option value="resolved">Resuelto</option>
+              <option value="closed">Cerrado</option>
+            </select>
+            <button id="save-status" class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
+              Actualizar
+            </button>
+          </div>
+        </div>
+        
+        <div class="border-t pt-4 mt-4">
+          <h3 class="font-semibold mb-2">Descripción:</h3>
+          <p id="detail-description" class="text-gray-700 whitespace-pre-line mb-6">Cargando contenido...</p>
+        </div>
+        
+        <div class="border-t pt-4">
+          <h3 class="font-semibold mb-4">Respuestas:</h3>
+          <div id="detail-responses" class="space-y-4 mb-6">
+            <!-- Responses will be loaded here -->
+          </div>
+          
+          <div id="no-responses" class="py-4 text-center text-gray-500 mb-4">
+            No hay respuestas aún.
+          </div>
+          
+          <div class="border-t pt-4">
+            <h3 class="font-semibold mb-2">Responder:</h3>
+            <form id="response-form" class="space-y-4">
+              <textarea 
+                id="response-content" 
+                rows="3" 
+                class="form-input" 
+                placeholder="Escribe tu respuesta aquí..."
+                required
+              ></textarea>
+              
+              <div class="text-right">
+                <button type="submit" class="btn btn-primary">
+                  Enviar Respuesta
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { getCurrentUser, getAllTickets, getTicketById, updateTicketStatus, addTicketResponse } from '../../services/localStorage';
+  
+  let currentTicketId = null;
+  
+  // Authentication check
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentUser = getCurrentUser();
+    
+    // Redirect if not logged in or not an admin
+    if (!currentUser || currentUser.role !== 'admin') {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Load all tickets
+    loadAllTickets();
+    
+    // Handle status filter
+    const statusFilter = document.getElementById('status-filter');
+    statusFilter?.addEventListener('change', () => {
+      loadAllTickets();
+    });
+  });
+  
+  // Load all tickets
+  function loadAllTickets() {
+    const tickets = getAllTickets();
+    const ticketsContainer = document.getElementById('tickets-container');
+    const emptyState = document.getElementById('empty-state');
+    const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+    
+    if (!ticketsContainer || !emptyState || !statusFilter) return;
+    
+    const selectedStatus = statusFilter.value;
+    
+    // Filter tickets by status if needed
+    const filteredTickets = selectedStatus !== 'all' 
+      ? tickets.filter(ticket => ticket.status === selectedStatus)
+      : tickets;
+    
+    if (filteredTickets.length === 0) {
+      ticketsContainer.innerHTML = '';
+      emptyState.classList.remove('hidden');
+    } else {
+      emptyState.classList.add('hidden');
+      
+      ticketsContainer.innerHTML = filteredTickets
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map((ticket) => {
+          const createdAt = new Date(ticket.createdAt).toLocaleDateString();
+          
+          let statusBadge = '';
+          switch (ticket.status) {
+            case 'open':
+              statusBadge = '<span class="badge badge-open">Abierto</span>';
+              break;
+            case 'in-progress':
+              statusBadge = '<span class="badge badge-in-progress">En Progreso</span>';
+              break;
+            case 'resolved':
+              statusBadge = '<span class="badge badge-resolved">Resuelto</span>';
+              break;
+            case 'closed':
+              statusBadge = '<span class="badge badge-closed">Cerrado</span>';
+              break;
+          }
+          
+          return `
+            <tr class="border-b">
+              <td class="px-4 py-3 text-sm">${ticket.userName}</td>
+              <td class="px-4 py-3 text-sm">${ticket.subject}</td>
+              <td class="px-4 py-3 text-sm">${statusBadge}</td>
+              <td class="px-4 py-3 text-sm">${createdAt}</td>
+              <td class="px-4 py-3 text-right">
+                <button class="view-ticket-btn text-blue-600 hover:text-blue-800" data-id="${ticket.id}">
+                  <i class="fas fa-eye mr-1"></i> Ver
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+      
+      // Add event listeners to view buttons
+      document.querySelectorAll('.view-ticket-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const ticketId = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (ticketId) {
+            viewTicketDetails(ticketId);
+          }
+        });
+      });
+    }
+  }
+  
+  // View ticket details
+  function viewTicketDetails(ticketId) {
+    currentTicketId = ticketId;
+    const ticket = getTicketById(ticketId);
+    if (!ticket) return;
+    
+    const modal = document.getElementById('ticket-detail-modal');
+    const subject = document.getElementById('detail-subject');
+    const userInfo = document.getElementById('detail-user');
+    const status = document.getElementById('detail-status');
+    const updateStatus = document.getElementById('update-status') as HTMLSelectElement;
+    const date = document.getElementById('detail-date');
+    const description = document.getElementById('detail-description');
+    const responses = document.getElementById('detail-responses');
+    const noResponses = document.getElementById('no-responses');
+    const closeBtn = document.getElementById('close-detail');
+    const responseForm = document.getElementById('response-form');
+    const saveStatusBtn = document.getElementById('save-status');
+    
+    if (!modal || !subject || !userInfo || !status || !updateStatus || !date || 
+        !description || !responses || !noResponses || !closeBtn || !responseForm || !saveStatusBtn) return;
+    
+    // Set ticket details
+    subject.textContent = ticket.subject;
+    userInfo.textContent = `Usuario: ${ticket.userName} (${ticket.userEmail})`;
+    description.textContent = ticket.description;
+    date.textContent = `Creado el ${new Date(ticket.createdAt).toLocaleDateString()}`;
+    
+    // Update status badge and select
+    updateStatus.value = ticket.status;
+    status.className = 'badge';
+    switch (ticket.status) {
+      case 'open':
+        status.classList.add('badge-open');
+        status.textContent = 'Abierto';
+        break;
+      case 'in-progress':
+        status.classList.add('badge-in-progress');
+        status.textContent = 'En Progreso';
+        break;
+      case 'resolved':
+        status.classList.add('badge-resolved');
+        status.textContent = 'Resuelto';
+        break;
+      case 'closed':
+        status.classList.add('badge-closed');
+        status.textContent = 'Cerrado';
+        break;
+    }
+    
+    // Show responses or empty state
+    if (ticket.responses && ticket.responses.length > 0) {
+      noResponses.classList.add('hidden');
+      responses.innerHTML = ticket.responses
+        .map((response) => {
+          const respDate = new Date(response.createdAt).toLocaleString();
+          const isAdmin = response.userRole === 'admin';
+          
+          return `
+            <div class="p-3 rounded-lg ${isAdmin ? 'bg-blue-50 border-l-4 border-blue-400' : 'bg-gray-50'}">
+              <div class="flex justify-between mb-1">
+                <span class="font-medium ${isAdmin ? 'text-blue-800' : ''}">
+                  ${response.userName} ${isAdmin ? '(Administrador)' : ''}
+                </span>
+                <span class="text-xs text-gray-500">${respDate}</span>
+              </div>
+              <p class="text-gray-700 whitespace-pre-line">${response.content}</p>
+            </div>
+          `;
+        })
+        .join('');
+    } else {
+      noResponses.classList.remove('hidden');
+      responses.innerHTML = '';
+    }
+    
+    // Handle status update
+    saveStatusBtn.addEventListener('click', () => {
+      const newStatus = updateStatus.value;
+      const result = updateTicketStatus(ticketId, newStatus);
+      
+      if (result.success) {
+        // Update the status badge
+        status.className = 'badge';
+        switch (newStatus) {
+          case 'open':
+            status.classList.add('badge-open');
+            status.textContent = 'Abierto';
+            break;
+          case 'in-progress':
+            status.classList.add('badge-in-progress');
+            status.textContent = 'En Progreso';
+            break;
+          case 'resolved':
+            status.classList.add('badge-resolved');
+            status.textContent = 'Resuelto';
+            break;
+          case 'closed':
+            status.classList.add('badge-closed');
+            status.textContent = 'Cerrado';
+            break;
+        }
+        
+        // Reload the tickets list
+        loadAllTickets();
+      }
+    });
+    
+    // Handle response form submission
+    responseForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const responseContent = document.getElementById('response-content') as HTMLTextAreaElement;
+      if (!responseContent || !responseContent.value.trim()) return;
+      
+      const result = addTicketResponse(ticketId, responseContent.value);
+      
+      if (result.success) {
+        responseContent.value = '';
+        viewTicketDetails(ticketId); // Refresh the ticket details
+      }
+    });
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Handle close button
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      currentTicketId = null;
+    });
+    
+    // Close on outside click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+        currentTicketId = null;
+      }
+    });
+  }
+</script>

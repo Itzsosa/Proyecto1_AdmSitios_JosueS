@@ -1,0 +1,341 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Panel de Usuario">
+  <div class="max-w-6xl mx-auto mt-8">
+    <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center">
+      <div>
+        <h1 class="text-3xl font-bold" id="welcome-message">Cargando...</h1>
+        <p class="text-gray-600">Gestiona tus tickets desde aquí</p>
+      </div>
+      
+      <div class="mt-4 md:mt-0">
+        <button id="new-ticket-btn" class="btn btn-primary">
+          <i class="fas fa-plus mr-2"></i> Nuevo Ticket
+        </button>
+      </div>
+    </div>
+    
+    <!-- New Ticket Form Dialog -->
+    <div id="ticket-form" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto flex justify-center items-start pt-10 z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">Crear Nuevo Ticket</h2>
+          <button id="close-form" class="text-gray-500 hover:text-gray-800">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <form id="create-ticket-form" class="space-y-4">
+          <div>
+            <label for="ticket-subject" class="block text-sm font-medium text-gray-700">Asunto</label>
+            <input type="text" id="ticket-subject" required class="form-input mt-1" placeholder="Describe brevemente tu problema">
+          </div>
+          
+          <div>
+            <label for="ticket-description" class="block text-sm font-medium text-gray-700">Descripción</label>
+            <textarea id="ticket-description" rows="5" required class="form-input mt-1" placeholder="Explica en detalle tu problema o solicitud"></textarea>
+          </div>
+          
+          <div id="ticket-error" class="text-red-500 text-sm hidden"></div>
+          
+          <div class="flex justify-end gap-3">
+            <button type="button" id="cancel-ticket" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Crear Ticket</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- My Tickets Section -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-bold mb-4">Mis Tickets</h2>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Asunto</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Fecha</th>
+              <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-container">
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                Cargando tickets...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Empty state -->
+      <div id="empty-state" class="hidden py-8 text-center">
+        <p class="text-gray-500">Aún no has creado ningún ticket</p>
+        <button class="btn btn-primary mt-4 new-ticket-btn">Crear mi primer ticket</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Ticket Detail Modal -->
+  <div id="ticket-detail-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 overflow-y-auto flex justify-center items-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4">
+      <div class="flex justify-between items-start">
+        <h2 id="detail-subject" class="text-xl font-bold">Cargando detalles...</h2>
+        <button id="close-detail" class="text-gray-500 hover:text-gray-800">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="mt-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span id="detail-status" class="badge badge-open">Abierto</span>
+          <span id="detail-date" class="text-sm text-gray-500">Fecha</span>
+        </div>
+        
+        <div class="border-t pt-4 mt-4">
+          <h3 class="font-semibold mb-2">Descripción:</h3>
+          <p id="detail-description" class="text-gray-700 whitespace-pre-line mb-6">Cargando contenido...</p>
+        </div>
+        
+        <div class="border-t pt-4">
+          <h3 class="font-semibold mb-2">Respuestas:</h3>
+          <div id="detail-responses" class="space-y-4">
+            <!-- Responses will be loaded here -->
+          </div>
+          
+          <div id="no-responses" class="py-4 text-center text-gray-500">
+            No hay respuestas aún.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { getCurrentUser, getUserTickets, getTicketById, createTicket } from '../../services/localStorage';
+  
+  // Authentication check
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentUser = getCurrentUser();
+    
+    // Redirect if not logged in or not a user
+    if (!currentUser || currentUser.role !== 'user') {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Set welcome message
+    const welcomeMessage = document.getElementById('welcome-message');
+    if (welcomeMessage) {
+      welcomeMessage.textContent = `Bienvenido(a), ${currentUser.name}`;
+    }
+    
+    // Load user's tickets
+    loadUserTickets();
+    
+    // Handle new ticket button
+    const newTicketBtns = document.querySelectorAll('#new-ticket-btn, .new-ticket-btn');
+    const ticketForm = document.getElementById('ticket-form');
+    const closeForm = document.getElementById('close-form');
+    const cancelTicket = document.getElementById('cancel-ticket');
+    
+    newTicketBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        ticketForm?.classList.remove('hidden');
+      });
+    });
+    
+    closeForm?.addEventListener('click', () => {
+      ticketForm?.classList.add('hidden');
+    });
+    
+    cancelTicket?.addEventListener('click', () => {
+      ticketForm?.classList.add('hidden');
+    });
+    
+    // Handle ticket form submission
+    const createTicketForm = document.getElementById('create-ticket-form');
+    createTicketForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const subject = (document.getElementById('ticket-subject') as HTMLInputElement).value;
+      const description = (document.getElementById('ticket-description') as HTMLTextAreaElement).value;
+      const errorElement = document.getElementById('ticket-error');
+      
+      try {
+        const result = createTicket(subject, description);
+        
+        if (result.success) {
+          ticketForm?.classList.add('hidden');
+          (document.getElementById('create-ticket-form') as HTMLFormElement).reset();
+          loadUserTickets();
+        } else {
+          if (errorElement) {
+            errorElement.textContent = result.message;
+            errorElement.classList.remove('hidden');
+          }
+        }
+      } catch (error) {
+        console.error('Error creating ticket:', error);
+        if (errorElement) {
+          errorElement.textContent = 'Error al crear el ticket. Intenta nuevamente.';
+          errorElement.classList.remove('hidden');
+        }
+      }
+    });
+  });
+  
+  // Load user's tickets
+  function loadUserTickets() {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return;
+    
+    const tickets = getUserTickets(currentUser.id);
+    const ticketsContainer = document.getElementById('tickets-container');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (!ticketsContainer || !emptyState) return;
+    
+    if (tickets.length === 0) {
+      ticketsContainer.innerHTML = '';
+      emptyState.classList.remove('hidden');
+    } else {
+      emptyState.classList.add('hidden');
+      
+      ticketsContainer.innerHTML = tickets
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map((ticket) => {
+          const createdAt = new Date(ticket.createdAt).toLocaleDateString();
+          
+          let statusBadge = '';
+          switch (ticket.status) {
+            case 'open':
+              statusBadge = '<span class="badge badge-open">Abierto</span>';
+              break;
+            case 'in-progress':
+              statusBadge = '<span class="badge badge-in-progress">En Progreso</span>';
+              break;
+            case 'resolved':
+              statusBadge = '<span class="badge badge-resolved">Resuelto</span>';
+              break;
+            case 'closed':
+              statusBadge = '<span class="badge badge-closed">Cerrado</span>';
+              break;
+          }
+          
+          return `
+            <tr class="border-b">
+              <td class="px-4 py-3 text-sm">${ticket.subject}</td>
+              <td class="px-4 py-3 text-sm">${statusBadge}</td>
+              <td class="px-4 py-3 text-sm">${createdAt}</td>
+              <td class="px-4 py-3 text-right">
+                <button class="view-ticket-btn text-blue-600 hover:text-blue-800" data-id="${ticket.id}">
+                  <i class="fas fa-eye mr-1"></i> Ver
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+      
+      // Add event listeners to view buttons
+      document.querySelectorAll('.view-ticket-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const ticketId = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (ticketId) {
+            viewTicketDetails(ticketId);
+          }
+        });
+      });
+    }
+  }
+  
+  // View ticket details
+  function viewTicketDetails(ticketId) {
+    const ticket = getTicketById(ticketId);
+    if (!ticket) return;
+    
+    const modal = document.getElementById('ticket-detail-modal');
+    const subject = document.getElementById('detail-subject');
+    const status = document.getElementById('detail-status');
+    const date = document.getElementById('detail-date');
+    const description = document.getElementById('detail-description');
+    const responses = document.getElementById('detail-responses');
+    const noResponses = document.getElementById('no-responses');
+    const closeBtn = document.getElementById('close-detail');
+    
+    if (!modal || !subject || !status || !date || !description || !responses || !noResponses || !closeBtn) return;
+    
+    // Set ticket details
+    subject.textContent = ticket.subject;
+    description.textContent = ticket.description;
+    date.textContent = `Creado el ${new Date(ticket.createdAt).toLocaleDateString()}`;
+    
+    // Update status badge
+    status.className = 'badge';
+    switch (ticket.status) {
+      case 'open':
+        status.classList.add('badge-open');
+        status.textContent = 'Abierto';
+        break;
+      case 'in-progress':
+        status.classList.add('badge-in-progress');
+        status.textContent = 'En Progreso';
+        break;
+      case 'resolved':
+        status.classList.add('badge-resolved');
+        status.textContent = 'Resuelto';
+        break;
+      case 'closed':
+        status.classList.add('badge-closed');
+        status.textContent = 'Cerrado';
+        break;
+    }
+    
+    // Show responses or empty state
+    if (ticket.responses && ticket.responses.length > 0) {
+      noResponses.classList.add('hidden');
+      responses.innerHTML = ticket.responses
+        .map((response) => {
+          const respDate = new Date(response.createdAt).toLocaleString();
+          const isAdmin = response.userRole === 'admin';
+          
+          return `
+            <div class="p-3 rounded-lg ${isAdmin ? 'bg-blue-50 border-l-4 border-blue-400' : 'bg-gray-50'}">
+              <div class="flex justify-between mb-1">
+                <span class="font-medium ${isAdmin ? 'text-blue-800' : ''}">
+                  ${response.userName} ${isAdmin ? '(Administrador)' : ''}
+                </span>
+                <span class="text-xs text-gray-500">${respDate}</span>
+              </div>
+              <p class="text-gray-700 whitespace-pre-line">${response.content}</p>
+            </div>
+          `;
+        })
+        .join('');
+    } else {
+      noResponses.classList.remove('hidden');
+      responses.innerHTML = '';
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Handle close button
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+    
+    // Close on outside click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+      }
+    });
+  }
+</script>

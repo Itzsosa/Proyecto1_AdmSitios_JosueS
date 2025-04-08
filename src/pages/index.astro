@@ -1,11 +1,71 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Inicio">
+  <section class="max-w-4xl mx-auto mt-10 text-center">
+    <h1 class="text-4xl font-bold mb-4">Sistema de Tickets</h1>
+    <p class="text-lg mb-8">Una plataforma simple para gestionar solicitudes y proporcionar soporte</p>
+    
+    <div class="bg-white p-6 rounded-lg shadow-md">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+          <h2 class="text-2xl font-semibold mb-4">Usuarios</h2>
+          <p class="mb-4">Crea y gestiona tus tickets de soporte de manera fácil y rápida.</p>
+          <ul class="text-left list-disc list-inside mb-4">
+            <li>Crea tickets con descripciones detalladas</li>
+            <li>Visualiza el estado de tus solicitudes</li>
+            <li>Revisa respuestas a tus tickets</li>
+          </ul>
+          <a href="/user" class="btn btn-primary inline-block">Acceder como Usuario</a>
+        </div>
+        
+        <div class="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
+          <h2 class="text-2xl font-semibold mb-4">Administradores</h2>
+          <p class="mb-4">Gestiona y responde a los tickets creados por los usuarios.</p>
+          <ul class="text-left list-disc list-inside mb-4">
+            <li>Visualiza todos los tickets pendientes</li>
+            <li>Actualiza el estado de los tickets</li>
+            <li>Responde a las solicitudes de los usuarios</li>
+          </ul>
+          <a href="/admin" class="btn btn-secondary inline-block">Acceder como Admin</a>
+        </div>
+      </div>
+      
+      <div class="mt-8">
+        <p class="mb-4">¿No tienes cuenta? Regístrate para usar el sistema</p>
+        <div class="flex justify-center gap-4">
+          <a href="/register" class="btn btn-primary">Registrarse</a>
+          <a href="/login" class="btn btn-secondary">Iniciar Sesión</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Check if user is logged in and redirect accordingly
+    document.addEventListener('DOMContentLoaded', () => {
+      const currentUser = localStorage.getItem('currentUser');
+      
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        
+        // Auto redirect to respective dashboard
+        const userLinks = document.querySelectorAll('a[href="/user"]');
+        const adminLinks = document.querySelectorAll('a[href="/admin"]');
+        
+        if (user.role === 'admin') {
+          adminLinks.forEach(link => {
+            link.classList.remove('btn-secondary');
+            link.classList.add('btn-success');
+          });
+        } else {
+          userLinks.forEach(link => {
+            link.classList.remove('btn-primary');
+            link.classList.add('btn-success');
+          });
+        }
+      }
+    });
+  </script>
 </Layout>

@@ -1,0 +1,96 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Registro">
+  <section class="max-w-md mx-auto mt-10 bg-white p-6 rounded-lg shadow-md">
+    <h1 class="text-2xl font-bold text-center mb-6">Crear Cuenta</h1>
+    
+    <form id="register-form" class="space-y-4">
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700">Nombre Completo</label>
+        <input type="text" id="name" name="name" required class="form-input mt-1" placeholder="Tu nombre">
+      </div>
+      
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+        <input type="email" id="email" name="email" required class="form-input mt-1" placeholder="tu@correo.com">
+      </div>
+      
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+        <input type="password" id="password" name="password" required class="form-input mt-1" placeholder="********" minlength="6">
+        <p class="text-xs text-gray-500 mt-1">La contraseña debe tener al menos 6 caracteres</p>
+      </div>
+      
+      <div>
+        <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirmar Contraseña</label>
+        <input type="password" id="confirm-password" name="confirm-password" required class="form-input mt-1" placeholder="********">
+      </div>
+      
+      <div id="error-message" class="text-red-500 text-sm hidden"></div>
+      <div id="success-message" class="text-green-500 text-sm hidden"></div>
+      
+      <div class="pt-2">
+        <button type="submit" class="btn btn-primary w-full">Registrarse</button>
+      </div>
+    </form>
+    
+    <p class="text-center mt-4 text-sm text-gray-600">
+      ¿Ya tienes una cuenta? <a href="/login" class="text-blue-600 hover:underline">Iniciar Sesión</a>
+    </p>
+  </section>
+</Layout>
+
+<script>
+  import { registerUser } from '../services/localStorage';
+  
+  // Handle form submission
+  document.getElementById('register-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    
+    const name = document.getElementById('name') as HTMLInputElement;
+    const email = document.getElementById('email') as HTMLInputElement;
+    const password = document.getElementById('password') as HTMLInputElement;
+    const confirmPassword = document.getElementById('confirm-password') as HTMLInputElement;
+    const errorMessage = document.getElementById('error-message');
+    const successMessage = document.getElementById('success-message');
+    
+    if (!name || !email || !password || !confirmPassword || !errorMessage || !successMessage) return;
+    
+    // Clear previous messages
+    errorMessage.classList.add('hidden');
+    successMessage.classList.add('hidden');
+    
+    // Validate passwords match
+    if (password.value !== confirmPassword.value) {
+      errorMessage.textContent = 'Las contraseñas no coinciden';
+      errorMessage.classList.remove('hidden');
+      return;
+    }
+    
+    try {
+      const result = registerUser(name.value, email.value, password.value);
+      
+      if (result.success) {
+        successMessage.textContent = 'Registro exitoso. ¡Ya puedes iniciar sesión!';
+        successMessage.classList.remove('hidden');
+        
+        // Reset form
+        document.getElementById('register-form')?.reset();
+        
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        errorMessage.textContent = result.message;
+        errorMessage.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      errorMessage.textContent = 'Error en el registro. Intenta nuevamente.';
+      errorMessage.classList.remove('hidden');
+    }
+  });
+</script>

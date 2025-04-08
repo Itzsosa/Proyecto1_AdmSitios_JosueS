@@ -1,0 +1,77 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Iniciar Sesión">
+  <section class="max-w-md mx-auto mt-10 bg-white p-6 rounded-lg shadow-md">
+    <h1 class="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
+    
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+        <input type="email" id="email" name="email" required class="form-input mt-1" placeholder="tu@correo.com">
+      </div>
+      
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+        <input type="password" id="password" name="password" required class="form-input mt-1" placeholder="********">
+      </div>
+      
+      <div id="error-message" class="text-red-500 text-sm hidden"></div>
+      
+      <div class="pt-2">
+        <button type="submit" class="btn btn-primary w-full">Iniciar Sesión</button>
+      </div>
+    </form>
+    
+    <p class="text-center mt-4 text-sm text-gray-600">
+      ¿No tienes una cuenta? <a href="/register" class="text-blue-600 hover:underline">Regístrate</a>
+    </p>
+  </section>
+</Layout>
+
+<script>
+  import { loginUser, initializeAdmin } from '../services/localStorage';
+  
+  // Initialize admin user
+  document.addEventListener('DOMContentLoaded', () => {
+    // Use a try-catch because localStorage might not be available in some contexts
+    try {
+      initializeAdmin();
+    } catch (error) {
+      console.error('Error initializing admin:', error);
+    }
+  });
+  
+  // Handle form submission
+  document.getElementById('login-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    
+    const email = document.getElementById('email') as HTMLInputElement;
+    const password = document.getElementById('password') as HTMLInputElement;
+    const errorMessage = document.getElementById('error-message');
+    
+    if (!email || !password || !errorMessage) return;
+    
+    try {
+      const result = loginUser(email.value, password.value);
+      
+      if (result.success) {
+        const user = result.user;
+        
+        if (user.role === 'admin') {
+          window.location.href = '/admin';
+        } else {
+          window.location.href = '/user';
+        }
+      } else {
+        errorMessage.textContent = result.message;
+        errorMessage.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      errorMessage.textContent = 'Error al iniciar sesión. Intenta nuevamente.';
+      errorMessage.classList.remove('hidden');
+    }
+  });
+</script>
